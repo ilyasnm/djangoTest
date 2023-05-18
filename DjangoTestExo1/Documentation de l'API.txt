@@ -1,0 +1,112 @@
+Documentation de l'API
+Authentification
+
+L'API utilise l'authentification basée sur un jeton pour sécuriser les points d'accès. Vous devez inclure un en-tête d'autorisation dans chaque requête avec la valeur "Bearer YOUR_TOKEN" est le jeton d'authentification valide.
+
+Endpoints
+Récupérer la liste des pages
+
+Endpoint : /api/pages/
+Méthode : GET
+
+Paramètres de requête :
+Aucun
+
+Réponse :
+
+    Code de statut 200 OK en cas de succès
+    Un tableau JSON contenant la liste des pages avec les informations suivantes :
+        id : l'identifiant unique de la page
+        title : le titre de la page
+        created_at : la date de création de la page
+        updated_at : la date de dernière mise à jour de la page
+
+Exemple de réponse :
+
+json
+
+[
+    {
+        "id": "abc123",
+        "title": "Page 1",
+        "created_at": "2023-05-17T09:30:00Z",
+        "updated_at": "2023-05-18T14:45:00Z"
+    },
+    {
+        "id": "def456",
+        "title": "Page 2",
+        "created_at": "2023-05-17T11:15:00Z",
+        "updated_at": "2023-05-18T10:20:00Z"
+    }
+]
+
+Récupérer les détails d'une page spécifique
+
+Endpoint : /api/pages/{page_id}/
+Méthode : GET
+
+Paramètres de requête :
+
+    page_id : l'identifiant unique de la page
+
+Réponse :
+
+    Code de statut 200 OK en cas de succès
+    Un objet JSON contenant les détails de la page avec les informations suivantes :
+        id : l'identifiant unique de la page
+        title : le titre de la page
+        content : le contenu de la page
+        created_at : la date de création de la page
+        updated_at : la date de dernière mise à jour de la page
+
+Exemple de réponse :
+
+json
+
+{
+    "id": "abc123",
+    "title": "Page 1",
+    "content": "Lorem ipsum dolor sit amet...",
+    "created_at": "2023-05-17T09:30:00Z",
+    "updated_at": "2023-05-18T14:45:00Z"
+}
+
+Mettre à jour une page
+
+Endpoint : /api/pages/{page_id}/
+Méthode : PATCH
+
+Paramètres de requête :
+
+    page_id : l'identifiant unique de la page
+
+Corps de la requête :
+Un objet JSON contenant les données de mise à jour pour la page. Les champs suivants peuvent être inclus :
+
+    title : le nouveau titre de la page
+    content : le nouveau contenu de la page
+
+Réponse :
+
+    Code de statut 200 OK en cas de succès
+    Un objet JSON contenant un message de succès en cas de réussite de la mise à jour
+
+Exemple de requête :
+
+json
+
+PATCH /api/pages/abc123/
+{
+    "title": "Nouveau titre",
+    "content": "Nouveau contenu de la page"
+}
+
+Exemple de réponse :
+
+json
+
+{
+    "message": "Page mise à jour avec succès"
+}
+
+Notez que vous devez inclure un en-tête d'autorisation valide pour effectuer des mises à jour de page.
