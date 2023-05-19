@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import path
 from django.http import JsonResponse
 import requests
+from .views import get_page_list, get_page_details, update_page
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -34,6 +35,9 @@ urlpatterns = [
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
+    path('pages/', get_page_list, name='get_page_list'),
+    path('pages/<int:page_id>/', get_page_details, name='get_page_details'),
+    path('pages/<int:page_id>/', update_page, name='update_page'),
 ]
 
 def get_page_list(request):
