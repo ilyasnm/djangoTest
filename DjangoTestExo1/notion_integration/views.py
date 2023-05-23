@@ -7,7 +7,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.parsers import FileUploadParser
+from rest_framework.decorators import api_view, parser_classes
+from .models import Video, VideoAnalysis
+import openai
+from django.utils import timezone
+import subprocess
 
 #les donnés du notion api c'est juste des exemples 
 
@@ -86,3 +93,86 @@ def my_view(request):
         # Return a response
         return Response(data)
     pass
+
+    
+def perform_video_analysis(video):
+    
+    video_content = video.read()  # Lire le contenu du fichier vidéo
+    # Ou
+    video_url = video.url  # Obtenir l'URL de la vidéo
+
+    # Appeler l'API Whisper d'OpenAI pour effectuer l'analyse vidéo
+    response = openai.whisper_analyze_video(video_content=video_content, video_url=video_url)
+
+    # Analyser et extraire les résultats de l'analyse vidéo à partir de la réponse de l'API
+    title = response['title']
+    content = response['description']
+    analysis_date = response['analysis_date']
+    confidence_score = response['confidence_score']
+    category = response['category']
+    duration = response['duration']
+    thumbnail_url = response['thumbnail_url']
+    location = response['location']
+
+    # Retourner les résultats de l'analyse vidéo
+    analysis_results = {
+        'title': title,
+        'content': content,
+        'analysis_date': analysis_date,
+        'confidence_score': confidence_score,
+        'category': category,
+        'duration': duration,
+        'thumbnail_url': thumbnail_url,
+        'location': location,
+    }
+    return analysis_results
+
+def process_video(video_content, video_url):
+
+    # Appeler l'API Whisper d'OpenAI pour effectuer l'analyse vidéo
+    response = requests.post(
+        'aoi ici ',
+        headers={'Authorization': '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'},
+        json={'video_content': video_content, 'video_url': video_url}
+    )
+
+    # Vérifiez et traitez la réponse de l'API
+    if response.status_code == 200:
+        analysis_results = response.json()
+        return analysis_results
+    else:
+        # Gérez les erreurs de l'appel API selon vos besoins
+        raise Exception('Failed to analyze video: ' + response.text)
+
+@api_view(['POST'])
+@parser_classes([FileUploadParser])
+@csrf_exempt
+def upload_video(request):
+    video_file = request.FILES['video']
+
+    # Traitez le fichier vidéo ou l'URL ici et effectuez l'analyse vidéo en utilisant l'API Whisper d'OpenAI
+    analysis_results = process_video(video_content=video_file.read(), video_url='')
+
+    # Enregistrez la vidéo dans la base de données
+    video = Video.objects.create(
+        title=video_file.name,
+        content=video_file.read(),
+        confidence_score=0,
+        category='',
+        analysis_date=timezone.now(),
+        duration=0,
+        thumbnail=None,
+    )
+    
+    # Effectuez l'analyse vidéo et enregistrez les résultats dans la base de données
+    video_analysis = VideoAnalysis.objects.create(
+        video=video,
+        confidence_score=analysis_results['confidence_score'],
+        category=analysis_results['category'],
+        timestamp=timezone.now(),
+        location=analysis_results['location'],
+        description=analysis_results['description'],
+    )
+
+    return JsonResponse({'message': 'Video uploaded and analyzed successfully.'})
+

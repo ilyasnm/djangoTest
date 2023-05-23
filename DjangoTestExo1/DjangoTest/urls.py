@@ -19,7 +19,7 @@ from django.contrib import admin
 from django.urls import path
 from django.http import JsonResponse
 import requests
-from .views import get_page_list, get_page_details, update_page
+from notion_integration.views import get_page_list, get_page_details, update_page
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
