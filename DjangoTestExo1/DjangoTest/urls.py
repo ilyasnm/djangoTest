@@ -22,7 +22,7 @@ import requests
 from notion_integration.views import get_page_list, get_page_details, update_page
 
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
+"""
 #Générez des jetons d'authentification pour les utilisateurs
 urlpatterns = [
     # Other URL patterns
@@ -61,3 +61,4 @@ def update_page(request, page_id):
 urlpatterns = [
     path('admin/', admin.site.urls),
 ]
+"""

@@ -7,7 +7,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import FileUploadParser
 from rest_framework.decorators import api_view, parser_classes
@@ -15,9 +14,12 @@ from .models import Video, VideoAnalysis
 import openai
 from django.utils import timezone
 import subprocess
+import os
+from django.http import HttpResponseBadRequest, JsonResponse
 
-#les donnés du notion api c'est juste des exemples 
-
+MAX_VIDEO_SIZE = 25 * 1024 * 1024  # 25 MB
+openai.api_key = "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"
+"""
 def get_page_list(request):
     # Logique pour récupérer la liste des pages de Notion
     headers = {
@@ -92,87 +94,84 @@ def my_view(request):
 
         # Return a response
         return Response(data)
-    pass
+    pass"""
 
-    
-def perform_video_analysis(video):
-    
-    video_content = video.read()  # Lire le contenu du fichier vidéo
-    # Ou
-    video_url = video.url  # Obtenir l'URL de la vidéo
+  
+def analyze_video(video_content):
+    # Étape 1: Enregistrer le contenu du fichier vidéo dans un fichier temporaire
+    with open("video_temp.mp4", "wb") as file:
+        for chunk in video_content.chunks():
+            file.write(chunk)
 
-    # Appeler l'API Whisper d'OpenAI pour effectuer l'analyse vidéo
-    response = openai.whisper_analyze_video(video_content=video_content, video_url=video_url)
+    # Étape 2: Vérifier le format du fichier vidéo
+    allowed_formats = [".mp4", ".mpeg", ".m4a", ".webm"]
+    file_extension = os.path.splitext("video_temp.mp4")[1]
+    if file_extension.lower() not in allowed_formats:
+        os.remove("video_temp.mp4")
+        return HttpResponseBadRequest("Le format de fichier vidéo n'est pas pris en charge.")
 
-    # Analyser et extraire les résultats de l'analyse vidéo à partir de la réponse de l'API
-    title = response['title']
-    content = response['description']
-    analysis_date = response['analysis_date']
-    confidence_score = response['confidence_score']
-    category = response['category']
-    duration = response['duration']
-    thumbnail_url = response['thumbnail_url']
-    location = response['location']
+    # Étape 3: Vérifier la taille du fichier vidéo
+    file_size = os.path.getsize("video_temp.mp4")
+    if file_size > MAX_VIDEO_SIZE:
+        os.remove("video_temp.mp4")
+        return HttpResponseBadRequest("La taille du fichier vidéo dépasse la limite autorisée.")
 
-    # Retourner les résultats de l'analyse vidéo
-    analysis_results = {
-        'title': title,
-        'content': content,
-        'analysis_date': analysis_date,
-        'confidence_score': confidence_score,
-        'category': category,
-        'duration': duration,
-        'thumbnail_url': thumbnail_url,
-        'location': location,
-    }
-    return analysis_results
+    # Étape 4: Extraire l'audio de la vidéo
+    audio_filename = "audio_temp.wav"
+    extract_audio_command = f'ffmpeg -i video_temp.mp4 -vn -acodec pcm_s16le -ar 44100 -ac 2 {audio_filename}'
+    os.system(extract_audio_command)
 
-def process_video(video_content, video_url):
+    # Étape 5: Appeler l'API Whisper pour transcrire l'audio
+    with open(audio_filename, "rb") as audio_file:
+        response = openai.Audio.transcribe("whisper-1", audio_file)
 
-    # Appeler l'API Whisper d'OpenAI pour effectuer l'analyse vidéo
-    response = requests.post(
-        'aoi ici ',
-        headers={'Authorization': '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'},
-        json={'video_content': video_content, 'video_url': video_url}
-    )
+    # Étape 6: Supprimer les fichiers temporaires
+    os.remove("video_temp.mp4")
+    os.remove(audio_filename)
 
-    # Vérifiez et traitez la réponse de l'API
-    if response.status_code == 200:
-        analysis_results = response.json()
-        return analysis_results
-    else:
-        # Gérez les erreurs de l'appel API selon vos besoins
-        raise Exception('Failed to analyze video: ' + response.text)
+    return response
 
-@api_view(['POST'])
-@parser_classes([FileUploadParser])
 @csrf_exempt
 def upload_video(request):
-    video_file = request.FILES['video']
+    if request.method == 'POST':
+        video_file = request.FILES['video']
+        content_type = video_file.content_type
+        file_size = video_file.size
 
-    # Traitez le fichier vidéo ou l'URL ici et effectuez l'analyse vidéo en utilisant l'API Whisper d'OpenAI
-    analysis_results = process_video(video_content=video_file.read(), video_url='')
+        # Vérifier le format du fichier vidéo
+        valid_formats = ['video/mp4', 'video/mpeg', 'audio/mp4', 'video/webm']
+        if content_type not in valid_formats:
+            return JsonResponse({'message': 'Invalid video format.'}, status=400)
 
-    # Enregistrez la vidéo dans la base de données
-    video = Video.objects.create(
-        title=video_file.name,
-        content=video_file.read(),
-        confidence_score=0,
-        category='',
-        analysis_date=timezone.now(),
-        duration=0,
-        thumbnail=None,
-    )
-    
-    # Effectuez l'analyse vidéo et enregistrez les résultats dans la base de données
-    video_analysis = VideoAnalysis.objects.create(
-        video=video,
-        confidence_score=analysis_results['confidence_score'],
-        category=analysis_results['category'],
-        timestamp=timezone.now(),
-        location=analysis_results['location'],
-        description=analysis_results['description'],
-    )
+        # Vérifier la taille du fichier vidéo
+        if file_size > MAX_VIDEO_SIZE:
+            return JsonResponse({'message': 'Video file size exceeds the limit.'}, status=400)
 
-    return JsonResponse({'message': 'Video uploaded and analyzed successfully.'})
+        # Traiter le fichier vidéo ici et extraire l'audio
+        video_content = video_file.read()
 
+        # Appeler la méthode analyze_video pour effectuer l'analyse de l'audio
+        response = analyze_video(video_content)
+
+        if response.status == "completed":
+            # Récupérer la transcription de l'audio
+            transcription = response.transcriptions[0].text
+
+            # Enregistrer la transcription dans la base de données 
+            video = Video.objects.create(
+                title=video.file.name,
+                content=video.file.read(),
+                analysis_date=timezone.now(),
+            )
+            
+            VideoAnalysis = VideoAnalysis.objects.create(
+                video=video,
+                timestamp=timezone.now(),
+                transcription=transcription,
+            )
+
+            return JsonResponse({'message': 'Video uploaded and audio analyzed successfully.'})
+        else:
+            return JsonResponse({'message': 'Failed to analyze video audio.'}, status=400)
+    else:
+        return JsonResponse({'message': 'Invalid request method.'}, status=405)
